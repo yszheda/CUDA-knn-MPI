@@ -1,0 +1,31 @@
+/* -*- Mode: C; c-basic-offset:4 ; -*- */
+/*
+ *  (C) 2001 by Argonne National Laboratory.
+ *      See COPYRIGHT in top-level directory.
+ */
+
+#include "mpi.h"
+#include "kernel.h"
+#include <stdio.h>
+#include <string.h>
+
+#define BUFLEN 512
+
+int main(int argc, char *argv[]){
+	int myid, numprocs, next, namelen;
+	int A[32];
+	int i;
+	char buffer[BUFLEN], processor_name[MPI_MAX_PROCESSOR_NAME];
+	MPI_Status status;
+
+	MPI_Init(&argc,&argv);
+	MPI_Comm_size(MPI_COMM_WORLD,&numprocs);
+	MPI_Comm_rank(MPI_COMM_WORLD,&myid);
+	MPI_Get_processor_name(processor_name,&namelen);
+	for(i = 0; i< 32; i++) A[i] = myid;
+	launch(A);
+	printf("%s  %d\n",processor_name,A[0]);
+	MPI_Barrier(MPI_COMM_WORLD);
+	MPI_Finalize();
+	return (0);
+}

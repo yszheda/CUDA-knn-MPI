@@ -11,6 +11,7 @@
 #include<stdio.h>
 #include<cuda.h>
 #include<stdlib.h>
+#include<pthread.h>
 
 #define INIT_MAX 10000000
 #define TILE_WIDTH 32
@@ -21,7 +22,7 @@
 void showResult(int m, int k, int *out);
 
 // compute the square of distance of the ith point and jth point
-__global__ void computeDist(int m, int n, int *V, int *D)
+__global__ void computeDist(int id, int m, int n, int *V, int *D)
 {
 	__shared__ int rowVector[TILE_WIDTH][TILE_DEPTH];
 	__shared__ int colVector[TILE_DEPTH][TILE_WIDTH];
@@ -45,25 +46,35 @@ __global__ void computeDist(int m, int n, int *V, int *D)
 			dist[py][px] = 0;
 			__syncthreads();
 		
-			for(int i=0; i<(int)(ceil((float)n/TILE_DEPTH)); i++)
+			if(row >= id*(m/2) && row < (id+1)*(m/2))
 			{
-				for(int j=tx; j<TILE_DEPTH; j+=blockDim.x)
+
+				for(int i=0; i<(int)(ceil((float)n/TILE_DEPTH)); i++)
 				{
-					rowVector[py][j] = V[row*n+i*TILE_DEPTH+j];
+					for(int j=tx; j<TILE_DEPTH; j+=blockDim.x)
+					{
+						rowVector[py][j] = V[row*n+i*TILE_DEPTH+j];
+					}
+					for(int j=ty; j<TILE_DEPTH; j+=blockDim.y)
+					{		
+						colVector[j][px] = V[col*n+i*TILE_DEPTH+j];
+					}
+					__syncthreads();
+			
+					for(int j=0; j<TILE_DEPTH; j++)
+					{
+						dist[py][px] += (rowVector[py][j]-colVector[j][px])*(rowVector[py][j]-colVector[j][px]);
+					}
+					__syncthreads();
 				}
-				for(int j=ty; j<TILE_DEPTH; j+=blockDim.y)
-				{		
-					colVector[j][px] = V[col*n+i*TILE_DEPTH+j];
-				}
-				__syncthreads();
-		
-				for(int j=0; j<TILE_DEPTH; j++)
+				
+				if(row >= (m/2))
 				{
-					dist[py][px] += (rowVector[py][j]-colVector[j][px])*(rowVector[py][j]-colVector[j][px]);
+					row -= (m/2);
 				}
-				__syncthreads();
+
+				D[row*m+col] = dist[py][px];
 			}
-			D[row*m+col] = dist[py][px];
 		}
 	}
 }
@@ -71,7 +82,7 @@ __global__ void computeDist(int m, int n, int *V, int *D)
 extern __shared__ int SMem[];
 
 //find the min value and index in the count^th loop
-__device__ int findMin(int m, int k, int count, int *D, int *out)
+__device__ int findMin(int id, int m, int k, int count, int *D, int *out)
 {
 	int i = blockIdx.x;
   	int tid = threadIdx.x;
@@ -85,18 +96,20 @@ __device__ int findMin(int m, int k, int count, int *D, int *out)
 	{
 		for(int j=tid; j<indexBase; j+=blockDim.x)
 		{
-			if(j+num == i)
+			if(j+num == i+(m/2)*id )
 			{
 				SMem[j] = INIT_MAX;
 			}
 			else
 			{
+//				SMem[j] = D[(i + (m/2)*id) *m+num+j];
 				SMem[j] = D[i*m+num+j];
 			}
 			//index
 			SMem[indexBase+j] = j+num;
 			__syncthreads();
 		}
+/*
 		if(tid < count)
 		{
 			if(out[i*k+tid]-num>=0 && out[i*k+tid]-num<indexBase)
@@ -106,7 +119,16 @@ __device__ int findMin(int m, int k, int count, int *D, int *out)
 			__syncthreads();
 		}
 		__syncthreads();
-
+*/
+		for(int j=0; j<count; j++)
+		{
+			if(out[i*k+j]-num>=0 && out[i*k+j]-num<indexBase)
+			{
+				SMem[ out[i*k+j]-num ] = INIT_MAX;
+			}
+			__syncthreads();
+		}
+		__syncthreads();
 //		for(s=indexBase/2; s>0; s>>=1) 
 		for(s=indexBase/2; s>32; s>>=1) 
 		{
@@ -213,7 +235,6 @@ __device__ int findMin(int m, int k, int count, int *D, int *out)
 */
 		if(tid < 32)
 		{
-			/*
 			#pragma unroll 5
 			for(s=32; s>0; s>>=1)
 			{ 
@@ -230,7 +251,7 @@ __device__ int findMin(int m, int k, int count, int *D, int *out)
 					SMem[indexBase+tid] = SMem[indexBase+tid+s];
 				}
 			}
-			*/
+/*
 			if(SMem[tid] == SMem[tid+32])
 			{
 				if(SMem[indexBase+tid] > SMem[indexBase+tid+32])
@@ -303,6 +324,7 @@ __device__ int findMin(int m, int k, int count, int *D, int *out)
 				SMem[tid] = SMem[tid+1];
 				SMem[indexBase+tid] = SMem[indexBase+tid+1];
 			}
+*/
 		}
 	
 		__syncthreads();
@@ -325,7 +347,7 @@ __device__ int findMin(int m, int k, int count, int *D, int *out)
 }
 
 // compute the k nearest neighbors
-__global__ void knn(int m, int k, int *V, int *D, int *out)
+__global__ void knn(int id, int m, int k, int *V, int *D, int *out)
 {
 	int i;
 	int count;
@@ -334,10 +356,12 @@ __global__ void knn(int m, int k, int *V, int *D, int *out)
 	__syncthreads();
 	for(count=0; count<k; count++)
 	{
-		out[i*k+count] = findMin(m, k, count, D, out);
+		out[i*k+count] = findMin(id, m, k, count, D, out);
 		__syncthreads();
 	}
 }
+
+extern "C"
 
 void showResult(int m, int k, int *out)
 {
@@ -355,12 +379,64 @@ void showResult(int m, int k, int *out)
 	}        	
 }            	
 
+void launch(int *V, int *out, float time)
+{
+	int *d_V, *d_out;			// device copies
+	int *D;						// distance matrix
+	// compute the execution time
+	cudaEvent_t start, stop;
+	// create event
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	// record event
+	cudaEventRecord(start);
+	
+	// allocate space for devices copies
+	cudaMalloc((void **)&d_V, m*n*sizeof(int));
+	cudaMalloc((void **)&d_out, m*k*sizeof(int));
+	cudaMalloc((void **)&D, m*m*sizeof(int));
+	
+	// copy host values to devices copies
+	cudaMemcpy(d_V, V, m*n*sizeof(int), cudaMemcpyHostToDevice);
+	
+	int gridDimX = (int)(ceil((float)m/TILE_WIDTH));
+	int gridDimY = (int)(ceil((float)m/TILE_WIDTH));
+	
+	dim3 grid(gridDimX, gridDimY);
+	dim3 block(TILE_WIDTH, TILE_WIDTH);
+	
+	// launch knn() kernel on GPU
+	computeDist<<<grid, block>>>(m, n, d_V, D);
+	cudaDeviceSynchronize();
+	
+	int threadNum = (m<MAX_BLOCK_SIZE)? m: MAX_BLOCK_SIZE;
+	int ptrNumInSMEM = (m<MAX_PTRNUM_IN_SMEM)? m: MAX_PTRNUM_IN_SMEM;
+	knn<<<m, threadNum, 2*ptrNumInSMEM*sizeof(int)>>>(m, k, d_V, D, d_out);
+	
+	// copy result back to host
+	cudaMemcpy(out, d_out, m*k*sizeof(int), cudaMemcpyDeviceToHost);
+	
+	// cleanup
+	cudaFree(d_V);
+	cudaFree(d_out);
+	cudaFree(D);
+	
+	// record event and synchronize
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+//	float time;
+	// get event elapsed time
+	cudaEventElapsedTime(&time, start, stop);
+
+}
+
+/*
 int main(int argc, char *argv[]) 
 { 
 	int m,n,k;
 	int i;
-	int *V, *out;				//host copies
-	int *d_V, *d_out;			//device copies
+	int *V, *out;				// host copies
+	int *d_V, *d_out;			// device copies
 	int *D;						
 	FILE *fp;
 	if(argc != 2)
@@ -444,4 +520,4 @@ int main(int argc, char *argv[])
 	fclose(fp);
 	return 0;
 }
-
+*/
