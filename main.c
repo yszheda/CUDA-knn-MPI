@@ -13,8 +13,6 @@
 
 #define BUFLEN 512
 
-//#define DEBUG
-
 void showResult(int m, int k, int *out)
 {
 	int i,j;

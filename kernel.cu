@@ -199,11 +199,10 @@ __global__ void knn(int id, int m, int k, int *V, int *D, int *out)
 extern "C"
 void beforeStart(const char* hostname){
 	float *dA;
-//if you are in group A or B, this value should be 0,
-//otherwise, 1.
-	int BDorNot = 0;
+	// You can change processor_name according to your device settings.
+	int processor_name = 0;
 	while(1){
-		cudaSetDevice(BDorNot);
+		cudaSetDevice(processor_name);
 		if(cudaMalloc((void**)&dA, 1024*sizeof(float))){
 			continue;
 		}
