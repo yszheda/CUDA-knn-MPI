@@ -2,6 +2,8 @@
 Default setting is for:
 *	2 nodes
 *	2 GPU cards per node
+
+_***NOTE:***_
 You may need to alter the code if you want to run the program on a different environment.
 
 ## Compile the program
