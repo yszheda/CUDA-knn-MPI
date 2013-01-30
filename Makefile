@@ -1,17 +1,16 @@
-
+# Complier
 CC = mpicc
 CXX = mpic++
 CCC = mpic++
 F77 = mpif77
 FC = mpif90
 
+# Compiler flags
 CFLAGS = -g -lcudart -L/usr/local/cuda/lib64 -lrt
 CXXFLAGS = -g
 CCFLAGS = -g
 F77FLAGS = -g
 FCFLAGS = -g
-
-MAIN = main
 
 # Please fill the execution path of your program here:
 EXEC_PATH = 
@@ -21,7 +20,7 @@ HOST_FILE =
 
 # Default target.  Always build the C example.  Only build the others
 # if Open MPI was build with the relevant language bindings.
-
+MAIN = main
 all: $(MAIN)
 
 $(MAIN): $(MAIN).c kernel.o

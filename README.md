@@ -1,4 +1,8 @@
 # k-nearest neighbor on multiple GPUs using CUDA and MPI
+Default setting is for:
+*	2 nodes
+*	2 GPU cards per node
+You may need to alter the code if you want to run the program on a different environment.
 
 ## Compile the program
 ```shell
