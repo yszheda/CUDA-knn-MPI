@@ -9,7 +9,7 @@ You may need to alter the code if you want to run the program on a different env
 	$ make
 ```
 ## Execute the program
-Put the hostnames in a file and then set EXEC_PATH and HOST_FILE in Makefile.
+Put the hostnames in a file and then set **EXEC_PATH** and **HOST_FILE** in Makefile.
 ```shell
 	$ make run IN="<inputfile>" OUT="<outputfile>"
 ```
