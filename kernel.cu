@@ -4,13 +4,6 @@
 #include<time.h>
 #include<cuda.h>
 
-//#define DEBUG
-#ifdef DEBUG
-#define TA_PRINT printf
-#else
-#define TA_PRINT(...) ;
-#endif
-
 #define INIT_MAX 10000000
 #define TILE_WIDTH 32
 #define TILE_DEPTH 128
@@ -217,7 +210,7 @@ void beforeStart(const char* hostname){
 		break;
 	}
 	cudaFree(dA);
-	TA_PRINT("you get device %d on %s\n", BDorNot, hostname);
+	printf("you get device %d on %s\n", BDorNot, hostname);
 }
 
 extern "C"
